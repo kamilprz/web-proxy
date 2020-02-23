@@ -64,16 +64,16 @@ def main():
 	_thread.start_new_thread(tkinter,())
 
 	# user input port number
-	port = int(input(">> Enter Listening Port Number: "))
+	port = int(input(">> Listening Port Number: "))
 
 	try:
 		# Ininitiate socket
-		s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)	
+		sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)	
 		# bind socket to port
-		s.bind(('', port))						
-		s.listen()						
+		sock.bind(('', port))						
+		sock.listen()						
 		print(">> Initializing sockets...")
-		print(">> Server boot successful [ {0} ]\n".format(port))		
+		print(">> Server boot successful - listening on port {0} ...\n".format(port))		
 	except Exception:
 		print(">> Error")
 		sys.exit(2)
@@ -81,15 +81,15 @@ def main():
 	while True:
 		try:
 			# connection from browser
-			conn, client_addr = s.accept()		
+			conn, client_addr = sock.accept()		
 			# receive data
 			data = conn.recv(BUFFER_SIZE)		
 			# start thread
 			_thread.start_new_thread(proxy_thread, (conn, data, client_addr)) 
 		except KeyboardInterrupt:
-			s.close()
+			sock.close()
 			sys.exit(1)
-	s.close()
+	sock.close()
 
 if __name__ == '__main__':
 	main()
