@@ -169,9 +169,12 @@ def proxy_connection(conn, client_address):
 							connections -= 1
 							return
 
+				# handle https requests
 				elif type == 'https':
+					print("im a http request")
+					conn.send(bytes("HTTP/1.1 200 Connection Established\r\n\r\n", "utf8"))
 					
-
+					
 	except Exception:
 		print("im na exception")
 		pass
