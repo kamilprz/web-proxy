@@ -10,6 +10,7 @@ cache = {}
 BUFFER_SIZE = 4096
 MAX_CONNECTIONS = 60
 PORT = 8080
+connections = 0
 
 #tkinter - GUI used to dynamically block and unlock URLs
 def tkinter():
@@ -81,7 +82,7 @@ def main():
 		print(">> Error")
 		sys.exit(2)
 	
-	connections = 0
+	global connections
 	while connections <= MAX_CONNECTIONS:
 		try:
 			# accept connection from browser
@@ -104,7 +105,7 @@ def proxy_connection(conn, client_address):
 	try:
 		data = conn.recv(BUFFER_SIZE)
 		# print(data)
-		if data:
+		if len(data) > 0:
 			# get first line of request
 			request_line = data.decode().split('\n')[0]
 			method = request_line.split(' ')[0]
@@ -113,12 +114,11 @@ def proxy_connection(conn, client_address):
 				type = 'https'
 			else:
 				type = 'http'
-			# print(method)
-			# print(url)
 
 			if isBlocked(url):
 				connections -= 1
 				conn.close()
+				return
 
 			else:
 				# need to parse url for webserver and port
@@ -139,11 +139,39 @@ def proxy_connection(conn, client_address):
 				socket.connect((webserver, port))
 
 				# handle http requests
-				if 
+				if type == 'http':
+					# send client request to server
+					sock.send(data)
 
+					while True:
+						try:
+							# try to receive data from the server
+							webserver_data = sock.recv(BUFFER_SIZE)
+						except socket.error:
+							print("Connection Timeout")
+							sock.close()
+							conn.close()
+							connections -= 1
+							return
+						
+						# if data is not emtpy, send it to the browser
+						if len(webserver_data) > 0:
+							conn.send(webserver_data)
+
+						# communication is stopped when a zero length of chunk is received
+						else:
+							sock.close()
+							conn.close()
+							connections -= 1
+							return
+
+				# elif type == 'https'
 	except Exception:
 		pass
-
+	
+	connections -= 1
+	conn.close()
+	return
 
 def isBlocked(url):
 	for x in blocked:
