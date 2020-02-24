@@ -8,9 +8,9 @@ blocked = {}
 # dict for cache
 cache = {}
 BUFFER_SIZE = 4096
-MAX_CONNECTIONS = 60
+MAX_active_connections = 60
 PORT = 8080
-connections = 0
+active_connections = 0
 
 #tkinter - GUI used to dynamically block and unlock URLs
 def tkinter():
@@ -75,24 +75,24 @@ def main():
 		sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)	
 		# bind socket to port
 		sock.bind(('', PORT))						
-		sock.listen(MAX_CONNECTIONS)						
+		sock.listen(MAX_active_connections)						
 		print(">> Initializing sockets...")
 		print(">> Listening on port {0} ...\n".format(PORT))		
 	except Exception:
 		print(">> Error")
 		sys.exit(2)
 	
-	global connections
-	while connections <= MAX_CONNECTIONS:
+	global active_connections
+	while active_connections <= MAX_active_connections:
 		try:
 			# accept connection from browser
 			conn, client_address = sock.accept()
-			connections += 1
+			active_connections += 1
 			# create thread	for the connection			
 			thread = threading.Thread(name = client_address, target = proxy_connection, args = (conn, client_address)) 
 			thread.setDaemon(True)
 			thread.start()
-			print("New connection. Number of connections: " + str(connections))
+			print("New connection. Number of active_connections: " + str(active_connections))
 		except KeyboardInterrupt:
 			sock.close()
 			sys.exit(1)
@@ -101,7 +101,7 @@ def main():
 
 # receive data and parse it, check http vs https
 def proxy_connection(conn, client_address):
-	global connections
+	global active_connections
 	try:
 		# receive data from browser
 		data = conn.recv(BUFFER_SIZE)
@@ -117,7 +117,7 @@ def proxy_connection(conn, client_address):
 				type = 'http'
 
 			if isBlocked(url):
-				connections -= 1
+				active_connections -= 1
 				conn.close()
 				return
 
@@ -155,7 +155,7 @@ def proxy_connection(conn, client_address):
 							print("Connection Timeout")
 							sock.close()
 							conn.close()
-							connections -= 1
+							active_connections -= 1
 							return
 						
 						# if data is not emtpy, send it to the browser
@@ -166,7 +166,7 @@ def proxy_connection(conn, client_address):
 						else:
 							sock.close()
 							conn.close()
-							connections -= 1
+							active_connections -= 1
 							return
 
 				# handle https requests
@@ -174,12 +174,36 @@ def proxy_connection(conn, client_address):
 					print("im a http request")
 					conn.send(bytes("HTTP/1.1 200 Connection Established\r\n\r\n", "utf8"))
 					
+					connections = [conn, sock]
+					keep_connection = True
+
+					while keep_connection:
+						read_sockets, sockets_for_writing, error_sockets = select.select(connections, [], connections, 100)
+						if error_sockets:
+							break
+						ready_sock = ready_sockets[0]
+						other = conn
+
+						# if ready_sock == conn
+						if(ready_sock == connections[0]):
+							other = sock
+						try:
+							data = ready_sock.recv(BUFFER_SIZE * 2)
+						except socket.error:
+							ready_sock.close()
+
+						if data:
+							other.sendall(data)
+							keep_connection = True
+						else:
+							keep_connection = False
+	
 					
 	except Exception:
 		print("im na exception")
 		pass
 	
-	connections -= 1
+	active_connections -= 1
 	print('iebfulsdfd')
 	conn.close()
 	return
