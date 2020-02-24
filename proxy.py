@@ -1,5 +1,5 @@
 
-import os, sys, threading, socket, time
+import os, sys, threading, socket, time, select
 import tkinter as tk
 from tkinter import*
 
@@ -7,8 +7,9 @@ from tkinter import*
 blocked = {}	
 # dict for cache
 cache = {}
-BUFFER_SIZE = 4096
-MAX_active_connections = 60
+HTTP_BUFFER = 4096
+HTTPS_BUFFER = 8192
+MAX_ACTIVE_CONNECTIONS = 60
 PORT = 8080
 active_connections = 0
 
@@ -75,7 +76,7 @@ def main():
 		sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)	
 		# bind socket to port
 		sock.bind(('', PORT))						
-		sock.listen(MAX_active_connections)						
+		sock.listen(MAX_ACTIVE_CONNECTIONS)						
 		print(">> Initializing sockets...")
 		print(">> Listening on port {0} ...\n".format(PORT))		
 	except Exception:
@@ -83,7 +84,7 @@ def main():
 		sys.exit(2)
 	
 	global active_connections
-	while active_connections <= MAX_active_connections:
+	while active_connections <= MAX_ACTIVE_CONNECTIONS:
 		try:
 			# accept connection from browser
 			conn, client_address = sock.accept()
@@ -92,7 +93,7 @@ def main():
 			thread = threading.Thread(name = client_address, target = proxy_connection, args = (conn, client_address)) 
 			thread.setDaemon(True)
 			thread.start()
-			print("New connection. Number of active_connections: " + str(active_connections))
+			print(">> New connection. Number of active connections: " + str(active_connections))
 		except KeyboardInterrupt:
 			sock.close()
 			sys.exit(1)
@@ -102,109 +103,113 @@ def main():
 # receive data and parse it, check http vs https
 def proxy_connection(conn, client_address):
 	global active_connections
-	try:
-		# receive data from browser
-		data = conn.recv(BUFFER_SIZE)
-		# print(data)
-		if len(data) > 0:
+
+	# receive data from browser
+	data = conn.recv(HTTP_BUFFER)
+	# print(data)
+	if len(data) > 0:
+		try:
 			# get first line of request
 			request_line = data.decode().split('\n')[0]
-			method = request_line.split(' ')[0]
-			url = request_line.split(' ')[1]
-			if method == 'CONNECT':
-				type = 'https'
-			else:
-				type = 'http'
-
-			if isBlocked(url):
-				active_connections -= 1
-				conn.close()
-				return
-
-			else:
-				# need to parse url for webserver and port
-				print(">> Request: " + request_line)
-				webserver = ""
-				port = -1
-				tmp = parseURL(url, type)
-				if len(tmp) > 0:
-					webserver, port = tmp
-					# print(webserver)
-					# print(port)
+			try:
+				method = request_line.split(' ')[0]
+				url = request_line.split(' ')[1]
+				if method == 'CONNECT':
+					type = 'https'
 				else:
-					return 
+					type = 'http'
 
-				# TODO: check cache??
-				print("Connected to " + webserver + " on port " + str(port))
+				if isBlocked(url):
+					active_connections -= 1
+					conn.close()
+					return
 
-				# connect to web server socket
-				sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-				sock.connect((webserver, port))
+				else:
+					# need to parse url for webserver and port
+					print(">> Request: " + request_line)
+					webserver = ""
+					port = -1
+					tmp = parseURL(url, type)
+					if len(tmp) > 0:
+						webserver, port = tmp
+						# print(webserver)
+						# print(port)
+					else:
+						return 
 
-				# handle http requests
-				if type == 'http':
-					print("im a http request")
-					# send client request to server
-					sock.send(data)
+					# TODO: check cache??
+					print(">> Connected to " + webserver + " on port " + str(port))
 
-					while True:
-						try:
-							# try to receive data from the server
-							webserver_data = sock.recv(BUFFER_SIZE)
-						except socket.error:
-							print("Connection Timeout")
-							sock.close()
-							conn.close()
-							active_connections -= 1
-							return
+					# connect to web server socket
+					sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+					sock.connect((webserver, port))
+
+					# handle http requests
+					if type == 'http':
+						# print("im a http request")
+						# send client request to server
+						sock.send(data)
+
+						while True:
+							try:
+								# try to receive data from the server
+								webserver_data = sock.recv(HTTP_BUFFER)
+							except socket.error:
+								print(">> Connection Timeout...")
+								sock.close()
+								conn.close()
+								active_connections -= 1
+								return
+							
+							# if data is not emtpy, send it to the browser
+							if len(webserver_data) > 0:
+								conn.send(webserver_data)
+
+							# communication is stopped when a zero length of chunk is received
+							else:
+								sock.close()
+								conn.close()
+								active_connections -= 1
+								return
+
+					# handle https requests
+					elif type == 'https':
+						# print("im a https request")
+						conn.send(bytes("HTTP/1.1 200 Connection Established\r\n\r\n", "utf8"))
 						
-						# if data is not emtpy, send it to the browser
-						if len(webserver_data) > 0:
-							conn.send(webserver_data)
+						connections = [conn, sock]
+						keep_connection = True
 
-						# communication is stopped when a zero length of chunk is received
-						else:
-							sock.close()
-							conn.close()
-							active_connections -= 1
-							return
+						while keep_connection:
+							ready_sockets, sockets_for_writing, error_sockets = select.select(connections, [], connections, 100)
+							
+							if error_sockets:
+								break
+							
+							for ready_sock in ready_sockets:
+								# look for ready sock
+								other = connections[1] if ready_sock is connections[0] else connections[0]
 
-				# handle https requests
-				elif type == 'https':
-					print("im a http request")
-					conn.send(bytes("HTTP/1.1 200 Connection Established\r\n\r\n", "utf8"))
-					
-					connections = [conn, sock]
-					keep_connection = True
+							try:
+								data = ready_sock.recv(HTTPS_BUFFER)
+							except socket.error:
+								print(">> Connection timeout...")
+								ready_sock.close()
 
-					while keep_connection:
-						read_sockets, sockets_for_writing, error_sockets = select.select(connections, [], connections, 100)
-						if error_sockets:
-							break
-						ready_sock = ready_sockets[0]
-						other = conn
-
-						# if ready_sock == conn
-						if(ready_sock == connections[0]):
-							other = sock
-						try:
-							data = ready_sock.recv(BUFFER_SIZE * 2)
-						except socket.error:
-							ready_sock.close()
-
-						if data:
-							other.sendall(data)
-							keep_connection = True
-						else:
-							keep_connection = False
-	
-					
-	except Exception:
-		print("im na exception")
-		pass
+							if data:
+								other.sendall(data)
+								keep_connection = True
+							else:
+								keep_connection = False
+			except IndexError:
+				pass
+		except UnicodeDecodeError:
+			pass
+	else:
+		pass				
 	
 	active_connections -= 1
-	print('iebfulsdfd')
+	print(">> Closing client connection...")
 	conn.close()
 	return
 
