@@ -10,7 +10,6 @@ cache = {}
 BUFFER_SIZE = 4096
 MAX_CONNECTIONS = 60
 PORT = 8080
-connections = 0
 
 #tkinter - GUI used to dynamically block and unlock URLs
 def tkinter():
@@ -82,7 +81,7 @@ def main():
 		print(">> Error")
 		sys.exit(2)
 	
-	
+	connections = 0
 	while connections <= MAX_CONNECTIONS:
 		try:
 			# accept connection from browser
@@ -101,19 +100,34 @@ def main():
 
 def proxy_connection(conn, client_address):
 	# receive data and parse it, check http vs https
+	global connections
 	try:
 		data = conn.recv(BUFFER_SIZE)
 		# print(data)
 		if data:
+			# get first line of request
 			request_line = data.decode().split('\n')[0]
 			method = request_line.split(' ')[0]
 			url = request_line.split(' ')[1]
-			print(method)
-			print(url)
+			# print(method)
+			# print(url)
 
 			if isBlocked(url):
 				connections -= 1
 				conn.close()
+
+			else:
+				# need to parse url for webserver and port
+				webserver = ""
+				port = -1
+				tmp = parseURL(url, method)
+				if len(tmp) > 0:
+					webserver, port = tmp
+					print(webserver)
+					print(port)
+				else:
+					return 
+
 	except Exception:
 		pass
 
@@ -124,6 +138,41 @@ def isBlocked(url):
 			print(url + " is blocked.")
 			return True
 	return False
+
+
+def parseURL(url, method):
+	# isolate url from ://
+	http_pos = url.find("://")		
+	if (http_pos == -1):
+		temp = url
+	else:
+		temp = url[(http_pos+3):]
+
+	# find pos of port if there is one
+	port_pos = temp.find(":")		
+
+	# find end of webserver
+	webserver_pos = temp.find("/") 	
+	if webserver_pos == -1:
+		webserver_pos = len(temp)
+
+	webserver = ""
+	port = -1
+	# default port
+	if (port_pos == -1 or webserver_pos < port_pos):
+		if method == "CONNECT":
+			# https
+			port = 443
+		else:
+			# http
+			port = 80
+		webserver = temp[:webserver_pos]
+	# defined port
+	else:												
+		port = int((temp[(port_pos+1):])[:webserver_pos-port_pos-1])
+		webserver = temp[:port_pos]
+
+	return [webserver, int(port)]
 
 if __name__ == '__main__':
 	main()
