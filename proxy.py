@@ -10,6 +10,7 @@ cache = {}
 BUFFER_SIZE = 4096
 MAX_CONNECTIONS = 60
 PORT = 8080
+connections = 0
 
 #tkinter - GUI used to dynamically block and unlock URLs
 def tkinter():
@@ -81,17 +82,17 @@ def main():
 		print(">> Error")
 		sys.exit(2)
 	
-	connections = 0
+	
 	while connections <= MAX_CONNECTIONS:
 		try:
-			connections += 1
-			# connection from browser
+			# accept connection from browser
 			conn, client_address = sock.accept()
+			connections += 1
 			# create thread				
 			thread = threading.Thread(name = client_address, target = proxy_connection, args = (conn, client_address)) 
 			thread.setDaemon(True)
 			thread.start()
-			print("New connection. Number of connections: " + connections)
+			print("New connection. Number of connections: " + str(connections))
 		except KeyboardInterrupt:
 			sock.close()
 			sys.exit(1)
@@ -100,8 +101,21 @@ def main():
 
 def proxy_connection(conn, client_address):
 	# receive data and parse it, check http vs https
-	data = conn.recv(BUFFER_SIZE)	
+	try:
+		data = conn.recv(BUFFER_SIZE)
+		# print(data)
+		if data:
+			request_line = data.decode().split('\n')[0]
+			method = request_line.split(' ')[0]
+			url = request_line.split(' ')[1]
+			print(method)
+			print(url)
 
+			if isBlocked(url):
+				connections -= 1
+				conn.close()
+	except Exception:
+		pass
 
 
 def isBlocked(url):
