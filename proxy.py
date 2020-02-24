@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+
 import os, sys, threading, socket, time
 import tkinter as tk
 from tkinter import*
@@ -102,6 +102,14 @@ def proxy_connection(conn, client_address):
 	# receive data and parse it, check http vs https
 	data = conn.recv(BUFFER_SIZE)	
 
+
+
+def isBlocked(url):
+	for x in blocked:
+		if x in url:
+			print(url + " is blocked.")
+			return True
+	return False
 
 if __name__ == '__main__':
 	main()
