@@ -88,7 +88,7 @@ def main():
 			# accept connection from browser
 			conn, client_address = sock.accept()
 			connections += 1
-			# create thread				
+			# create thread	for the connection			
 			thread = threading.Thread(name = client_address, target = proxy_connection, args = (conn, client_address)) 
 			thread.setDaemon(True)
 			thread.start()
@@ -99,10 +99,11 @@ def main():
 	sock.close()
 
 
+# receive data and parse it, check http vs https
 def proxy_connection(conn, client_address):
-	# receive data and parse it, check http vs https
 	global connections
 	try:
+		# receive data from browser
 		data = conn.recv(BUFFER_SIZE)
 		# print(data)
 		if len(data) > 0:
@@ -122,24 +123,27 @@ def proxy_connection(conn, client_address):
 
 			else:
 				# need to parse url for webserver and port
+				print(">> Request: " + request_line)
 				webserver = ""
 				port = -1
 				tmp = parseURL(url, type)
 				if len(tmp) > 0:
 					webserver, port = tmp
-					print(webserver)
-					print(port)
+					# print(webserver)
+					# print(port)
 				else:
 					return 
 
-				# do caching here
-				
-				# connect to web server socket and save url to cache
+				# TODO: check cache??
+				print("Connected to " + webserver + " on port " + str(port))
+
+				# connect to web server socket
 				sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-				socket.connect((webserver, port))
+				sock.connect((webserver, port))
 
 				# handle http requests
 				if type == 'http':
+					print("im a http request")
 					# send client request to server
 					sock.send(data)
 
@@ -165,11 +169,15 @@ def proxy_connection(conn, client_address):
 							connections -= 1
 							return
 
-				# elif type == 'https'
+				elif type == 'https':
+					
+
 	except Exception:
+		print("im na exception")
 		pass
 	
 	connections -= 1
+	print('iebfulsdfd')
 	conn.close()
 	return
 
