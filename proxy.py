@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-import os, sys, _thread, socket, time
+import os, sys, threading, socket, time
 import tkinter as tk
 from tkinter import*
 
@@ -8,6 +8,8 @@ blocked = {}
 # dict for cache
 cache = {}
 BUFFER_SIZE = 4096
+MAX_CONNECTIONS = 60
+PORT = 8080
 
 #tkinter - GUI used to dynamically block and unlock URLs
 def tkinter():
@@ -50,7 +52,7 @@ def tkinter():
 
 	# prints all cached urls
 	def print_cache():
-		for key, value in cache.iteritems():
+		for key, value in cache.iteritems(): # fix when empty
 			print(key)
 
 	print_cache = Button(console, text = "Print Cache", command = print_cache)
@@ -58,38 +60,48 @@ def tkinter():
 
 	mainloop()
 	
+
 # MAIN PROGRAM
 def main():
 	# boot up the tkinter gui
-	_thread.start_new_thread(tkinter,())
-
-	# user input port number
-	port = int(input(">> Listening Port Number: "))
+	# _thread.start_new_thread(tkinter,())
+	thread = threading.Thread(target = tkinter)
+	thread.setDaemon(True)
+	thread.start()
 
 	try:
 		# Ininitiate socket
 		sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)	
 		# bind socket to port
-		sock.bind(('', port))						
-		sock.listen()						
+		sock.bind(('', PORT))						
+		sock.listen(MAX_CONNECTIONS)						
 		print(">> Initializing sockets...")
-		print(">> Server boot successful - listening on port {0} ...\n".format(port))		
+		print(">> Listening on port {0} ...\n".format(PORT))		
 	except Exception:
 		print(">> Error")
 		sys.exit(2)
 	
-	while True:
+	connections = 0
+	while connections <= MAX_CONNECTIONS:
 		try:
+			connections += 1
 			# connection from browser
-			conn, client_addr = sock.accept()		
-			# receive data
-			data = conn.recv(BUFFER_SIZE)		
-			# start thread
-			_thread.start_new_thread(proxy_thread, (conn, data, client_addr)) 
+			conn, client_address = sock.accept()
+			# create thread				
+			thread = threading.Thread(name = client_address, target = proxy_connection, args = (conn, client_address)) 
+			thread.setDaemon(True)
+			thread.start()
+			print("New connection. Number of connections: " + connections)
 		except KeyboardInterrupt:
 			sock.close()
 			sys.exit(1)
 	sock.close()
+
+
+def proxy_connection(conn, client_address):
+	# receive data and parse it, check http vs https
+	data = conn.recv(BUFFER_SIZE)	
+
 
 if __name__ == '__main__':
 	main()
