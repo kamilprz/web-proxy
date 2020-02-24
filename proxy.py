@@ -109,6 +109,10 @@ def proxy_connection(conn, client_address):
 			request_line = data.decode().split('\n')[0]
 			method = request_line.split(' ')[0]
 			url = request_line.split(' ')[1]
+			if method == 'CONNECT':
+				type = 'https'
+			else:
+				type = 'http'
 			# print(method)
 			# print(url)
 
@@ -120,13 +124,22 @@ def proxy_connection(conn, client_address):
 				# need to parse url for webserver and port
 				webserver = ""
 				port = -1
-				tmp = parseURL(url, method)
+				tmp = parseURL(url, type)
 				if len(tmp) > 0:
 					webserver, port = tmp
 					print(webserver)
 					print(port)
 				else:
 					return 
+
+				# do caching here
+				
+				# connect to web server socket and save url to cache
+				sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+				socket.connect((webserver, port))
+
+				# handle http requests
+				if 
 
 	except Exception:
 		pass
@@ -140,7 +153,7 @@ def isBlocked(url):
 	return False
 
 
-def parseURL(url, method):
+def parseURL(url, type):
 	# isolate url from ://
 	http_pos = url.find("://")		
 	if (http_pos == -1):
@@ -160,7 +173,7 @@ def parseURL(url, method):
 	port = -1
 	# default port
 	if (port_pos == -1 or webserver_pos < port_pos):
-		if method == "CONNECT":
+		if type == "https":
 			# https
 			port = 443
 		else:
