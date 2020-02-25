@@ -32,13 +32,12 @@ def tkinter():
 	block_button.pack()
 
 	def unblock_url():
-		ret = unblock.get()
-		temp = blocked.get(ret)
-		if temp is None:
-			print(">> " + ret + " is not blocked")
+		url = unblock.get()
+		if url not in blocked:
+			print(">> " + url + " is not blocked")
 		else:
-			blocked.pop(ret)
-			print(">> Unblocked: " + ret)
+			blocked.discard(url)
+			print(">> Unblocked: " + url)
 
 	unblock = Entry(console)
 	unblock.pack()
@@ -174,7 +173,7 @@ def proxy_connection(conn, client_address):
 								while True:
 									# try to receive data from the server
 									webserver_data = sock.recv(HTTP_BUFFER)
-									# if data is not emtpy, send it to the browser
+									# if data is not empty, send it to the browser
 									if len(webserver_data) > 0:
 										conn.send(webserver_data)
 										string_builder.extend(webserver_data)
