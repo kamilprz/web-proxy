@@ -150,16 +150,21 @@ def proxy_connection(conn, client_address):
 						conn.sendall(x)
 						finish = time.time()
 						print(">> Request took: " + str(finish-start) + "s with cache.")
-						print(">> Request took: " + str(timings[webserver]) + "s without cache."
+						print(">> Request took: " + str(response_times[webserver]) + "s without cache.")
 					
 					else:
 						# connect to web server socket
 						sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-						sock.connect((webserver, port))
+						# sock.connect((webserver, port))
 
 						# handle http requests
 						if type == 'http':
 							# print("im a http request")
+							# string builder to build response for cache.
+							start = time.time()
+							string_builder = bytearray("", 'utf-8')
+							sock.connect((webserver, port))
+
 							# send client request to server
 							sock.send(data)
 
@@ -177,16 +182,25 @@ def proxy_connection(conn, client_address):
 								# if data is not emtpy, send it to the browser
 								if len(webserver_data) > 0:
 									conn.send(webserver_data)
-
+									string_builder.extend(webserver_data)
 								# communication is stopped when a zero length of chunk is received
 								else:
-									sock.close()
-									conn.close()
-									active_connections -= 1
-									return
+									break
+						
+							# communication is over so can now store the response_time and response which was built
+							finish = time.time()
+							print(">> Request took: " + str(finish-start) + "s")
+							response_times[webserver] = finish - start 
+							cache[webserver] = string_builder
+							print(">> Added to cache: " + webserver)
+							sock.close()
+							conn.close()
+							active_connections -= 1
+							return
 
 						# handle https requests
 						elif type == 'https':
+							sock.connect((webserver, port))
 							# print("im a https request")
 							conn.send(bytes("HTTP/1.1 200 Connection Established\r\n\r\n", "utf8"))
 							
