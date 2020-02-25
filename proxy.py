@@ -3,7 +3,7 @@ import tkinter as tk
 from tkinter import*
 
 # dict for blocked URLs
-blocked = {}
+blocked = set([])
 # dict for cache
 cache = {}
 # dict for time of response before caching.	
@@ -19,11 +19,10 @@ def tkinter():
 	console = tk.Tk()
 
 	def block_url():
-		ret = block.get()
-		temp = blocked.get(ret)
-		if temp is None:
-			blocked[ret] = 1	
-			print(">> Blocked: " + ret)
+		url = block.get()
+		if url not in blocked:
+			blocked.add(url)	
+			print(">> Blocked: " + url)
 		else:
 			print(">> Already blocked")
 
@@ -48,15 +47,18 @@ def tkinter():
 
 	# prints all blocked urls
 	def print_blocked():
-		print(blocked)
+		print("\n>> Blocked URLs: ")
+		for x in blocked:
+			print(x)
 
 	print_blocked = Button(console, text = "Print Blocked URLs", command = print_blocked)
 	print_blocked.pack()
 
 	# prints all cached urls
 	def print_cache():
-		for key, value in cache.iteritems(): # fix when empty
-			print(key)
+		print("\n>> Current Cache: ")
+		for x in cache.keys():
+			print(x)
 
 	print_cache = Button(console, text = "Print Cache", command = print_cache)
 	print_cache.pack()
