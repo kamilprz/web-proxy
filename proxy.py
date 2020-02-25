@@ -182,10 +182,7 @@ def proxy_connection(conn, client_address):
 									else:
 										break
 							except socket.error:
-									print(">> Connection Timeout...")
-									sock.close()
-									conn.close()
-									active_connections -= 1
+								pass
 						
 							# communication is over so can now store the response_time and response which was built
 							finish = time.time()
