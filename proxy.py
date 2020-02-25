@@ -1,4 +1,3 @@
-
 import os, sys, threading, socket, time, select
 import tkinter as tk
 from tkinter import*
@@ -169,24 +168,22 @@ def proxy_connection(conn, client_address):
 							sock.send(data)
 							sock.settimeout(2)	
 
-							while True:
-								try:
+							try:
+								while True:
 									# try to receive data from the server
 									webserver_data = sock.recv(HTTP_BUFFER)
-								except socket.error:
+									# if data is not emtpy, send it to the browser
+									if len(webserver_data) > 0:
+										conn.send(webserver_data)
+										string_builder.extend(webserver_data)
+									# communication is stopped when a zero length of chunk is received
+									else:
+										break
+							except socket.error:
 									print(">> Connection Timeout...")
 									sock.close()
 									conn.close()
 									active_connections -= 1
-									return
-								
-								# if data is not emtpy, send it to the browser
-								if len(webserver_data) > 0:
-									conn.send(webserver_data)
-									string_builder.extend(webserver_data)
-								# communication is stopped when a zero length of chunk is received
-								else:
-									break
 						
 							# communication is over so can now store the response_time and response which was built
 							finish = time.time()
@@ -194,10 +191,9 @@ def proxy_connection(conn, client_address):
 							response_times[webserver] = finish - start 
 							cache[webserver] = string_builder
 							print(">> Added to cache: " + webserver)
+							active_connections -= 1
 							sock.close()
 							conn.close()
-							active_connections -= 1
-							return
 
 						# handle https requests
 						elif type == 'https':
@@ -236,10 +232,10 @@ def proxy_connection(conn, client_address):
 	else:
 		pass				
 	
-	active_connections -= 1
-	print(">> Closing client connection...")
-	conn.close()
-	return
+	# active_connections -= 1
+	# print(">> Closing client connection...")
+	# conn.close()
+	# return
 
 def isBlocked(url):
 	for x in blocked:
