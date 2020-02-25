@@ -3,8 +3,8 @@ import os, sys, threading, socket, time, select
 import tkinter as tk
 from tkinter import*
 
-# dict for blocked URLs		
-blocked = {}	
+# dict for blocked URLs
+blocked = {}
 # dict for cache
 cache = {}
 HTTP_BUFFER = 4096
@@ -66,7 +66,6 @@ def tkinter():
 # MAIN PROGRAM
 def main():
 	# boot up the tkinter gui
-	# _thread.start_new_thread(tkinter,())
 	thread = threading.Thread(target = tkinter)
 	thread.setDaemon(True)
 	thread.start()
@@ -78,7 +77,8 @@ def main():
 		sock.bind(('', PORT))						
 		sock.listen(MAX_ACTIVE_CONNECTIONS)						
 		print(">> Initializing sockets...")
-		print(">> Listening on port {0} ...\n".format(PORT))		
+		print(">> Listening on port {0} ...".format(PORT))
+		# print(">> Blocked Sites:")
 	except Exception:
 		print(">> Error")
 		sys.exit(2)
