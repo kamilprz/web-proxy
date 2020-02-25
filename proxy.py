@@ -7,6 +7,8 @@ from tkinter import*
 blocked = {}
 # dict for cache
 cache = {}
+# dict for time of response before caching.	
+response_times = {}
 HTTP_BUFFER = 4096
 HTTPS_BUFFER = 8192
 MAX_ACTIVE_CONNECTIONS = 60
@@ -137,70 +139,81 @@ def proxy_connection(conn, client_address):
 					else:
 						return 
 
-					# TODO: check cache??
 					print(">> Connected to " + webserver + " on port " + str(port))
+					
+					# check cache for response
+					start = time.time()
+					x = cache.get(webserver)
+					if x is not None:
+						# if in cache - don't bother setting up socket connection and send the response back
+						print(">> Sending cached response to user")
+						conn.sendall(x)
+						finish = time.time()
+						print(">> Request took: " + str(finish-start) + "s with cache.")
+						print(">> Request took: " + str(timings[webserver]) + "s without cache."
+					
+					else:
+						# connect to web server socket
+						sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+						sock.connect((webserver, port))
 
-					# connect to web server socket
-					sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-					sock.connect((webserver, port))
+						# handle http requests
+						if type == 'http':
+							# print("im a http request")
+							# send client request to server
+							sock.send(data)
 
-					# handle http requests
-					if type == 'http':
-						# print("im a http request")
-						# send client request to server
-						sock.send(data)
+							while True:
+								try:
+									# try to receive data from the server
+									webserver_data = sock.recv(HTTP_BUFFER)
+								except socket.error:
+									print(">> Connection Timeout...")
+									sock.close()
+									conn.close()
+									active_connections -= 1
+									return
+								
+								# if data is not emtpy, send it to the browser
+								if len(webserver_data) > 0:
+									conn.send(webserver_data)
 
-						while True:
-							try:
-								# try to receive data from the server
-								webserver_data = sock.recv(HTTP_BUFFER)
-							except socket.error:
-								print(">> Connection Timeout...")
-								sock.close()
-								conn.close()
-								active_connections -= 1
-								return
+								# communication is stopped when a zero length of chunk is received
+								else:
+									sock.close()
+									conn.close()
+									active_connections -= 1
+									return
+
+						# handle https requests
+						elif type == 'https':
+							# print("im a https request")
+							conn.send(bytes("HTTP/1.1 200 Connection Established\r\n\r\n", "utf8"))
 							
-							# if data is not emtpy, send it to the browser
-							if len(webserver_data) > 0:
-								conn.send(webserver_data)
+							connections = [conn, sock]
+							keep_connection = True
 
-							# communication is stopped when a zero length of chunk is received
-							else:
-								sock.close()
-								conn.close()
-								active_connections -= 1
-								return
+							while keep_connection:
+								ready_sockets, sockets_for_writing, error_sockets = select.select(connections, [], connections, 100)
+								
+								if error_sockets:
+									break
+								
+								for ready_sock in ready_sockets:
+									# look for ready sock
+									other = connections[1] if ready_sock is connections[0] else connections[0]
 
-					# handle https requests
-					elif type == 'https':
-						# print("im a https request")
-						conn.send(bytes("HTTP/1.1 200 Connection Established\r\n\r\n", "utf8"))
-						
-						connections = [conn, sock]
-						keep_connection = True
+								try:
+									data = ready_sock.recv(HTTPS_BUFFER)
+								except socket.error:
+									print(">> Connection timeout...")
+									ready_sock.close()
 
-						while keep_connection:
-							ready_sockets, sockets_for_writing, error_sockets = select.select(connections, [], connections, 100)
-							
-							if error_sockets:
-								break
-							
-							for ready_sock in ready_sockets:
-								# look for ready sock
-								other = connections[1] if ready_sock is connections[0] else connections[0]
-
-							try:
-								data = ready_sock.recv(HTTPS_BUFFER)
-							except socket.error:
-								print(">> Connection timeout...")
-								ready_sock.close()
-
-							if data:
-								other.sendall(data)
-								keep_connection = True
-							else:
-								keep_connection = False
+								if data:
+									other.sendall(data)
+									keep_connection = True
+								else:
+									keep_connection = False
 			except IndexError:
 				pass
 		except UnicodeDecodeError:
