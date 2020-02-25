@@ -167,6 +167,7 @@ def proxy_connection(conn, client_address):
 
 							# send client request to server
 							sock.send(data)
+							sock.settimeout(2)	
 
 							while True:
 								try:
